@@ -1,0 +1,9 @@
+<launch>
+    <node name = "joy_node" pkg = "joy" type = "joy_node"/>
+    <!--<node name = "joy_node" pkg = "joy" type = "joy_node" output = "screen" launch-prefix = "gnome-terminal -x" />-->
+    <!--<param name = "autorepeat_rate" value="5"/>-->
+    
+    
+    <!--<node name = "TPcontrol_joy_node" pkg = "prizm-control-hw-Thomasbrefeld" type = "joy_control_node"/>-->
+    <node name = "joy_to_twist" pkg = "joystick_demo2" type = "joy_to_twist" output = "screen" launch-prefix = "gnome-terminal -x" />
+</launch>
