@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(joystick_demo2)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+#add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -11,6 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  sensor_msgs
+  dbw_polaris_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -207,3 +209,6 @@ include_directories(
 
 add_executable(joy_to_twist src/joy_to_twist.cpp)
 target_link_libraries(joy_to_twist ${catkin_LIBRARIES})
+
+add_executable(joystick_demo2 src/joystick_demo2.cpp)
+target_link_libraries(joystick_demo2 ${catkin_LIBRARIES})

@@ -31,7 +31,7 @@ int main(int argc, char** argv){
 	vel_msg.angular.y = 0;
 
     //sets subscriber and publisher
-    cmd_vel = nh.advertise<geometry_msgs::Twist>("/Joy_test", 1000);
+    cmd_vel = nh.advertise<geometry_msgs::Twist>("/joy_to_twist", 1000);
     joy_sub = nh.subscribe("/joy", 10, joy_call_back);
 
     while(true){

@@ -2,18 +2,6 @@
 
 JoystickDemo::JoystickDemo(ros::NodeHandle &node, ros::NodeHandle &priv_nh) : counter_(0)
 {
-  joy_.axes.resize(AXIS_COUNT_X, 0);
-  joy_.buttons.resize(BTN_COUNT_X, 0);
-
-  brake_ = true;
-  throttle_ = true;
-  steer_ = true;
-  shift_ = true;
-  priv_nh.getParam("brake", brake_);
-  priv_nh.getParam("throttle", throttle_);
-  priv_nh.getParam("steer", steer_);
-  priv_nh.getParam("shift", shift_);
-
   brake_gain_ = 1.0;
   throttle_gain_ = 1.0;
   priv_nh.getParam("brake_gain", brake_gain_);
@@ -21,56 +9,25 @@ JoystickDemo::JoystickDemo(ros::NodeHandle &node, ros::NodeHandle &priv_nh) : co
   brake_gain_    = std::min(std::max(brake_gain_,    (float)0), (float)1);
   throttle_gain_ = std::min(std::max(throttle_gain_, (float)0), (float)1);
 
-  ignore_ = false;
-  enable_ = true;
-  count_ = false;
-  strq_ = false;
-  svel_ = 0.0;
-  last_steering_filt_output_ = 0.0;
-  priv_nh.getParam("ignore", ignore_);
-  priv_nh.getParam("enable", enable_);
-  priv_nh.getParam("count", count_);
-  priv_nh.getParam("strq", strq_);
-  priv_nh.getParam("svel", svel_);
+  sub_twist_ = node.subscribe("/joy_to_twist", 1, &JoystickDemo::twist_callback, this);
 
-  sub_joy_ = node.subscribe("/joy", 1, &JoystickDemo::recvJoy, this);
+  data_.linear_x = 0;
+  data_.angular_z = 0;
 
-  data_.brake_joy = 0.0;
-  data_.gear_cmd = dbw_polaris_msgs::Gear::NONE;
-  data_.steering_joy = 0.0;
-  data_.steering_mult = false;
-  data_.steering_cal = false;
-  data_.throttle_joy = 0.0;
-  data_.joy_throttle_valid = false;
-  data_.joy_brake_valid = false;
-
-  if (brake_) {
-    pub_brake_ = node.advertise<dbw_polaris_msgs::BrakeCmd>("brake_cmd", 1);
-  }
-  if (throttle_) {
-    pub_throttle_ = node.advertise<dbw_polaris_msgs::ThrottleCmd>("throttle_cmd", 1);
-  }
-  if (steer_) {
-    pub_steering_ = node.advertise<dbw_polaris_msgs::SteeringCmd>("steering_cmd", 1);
-    pub_steering_cal_ = node.advertise<std_msgs::Empty>("calibrate_steering", 1);
-  }
-  if (shift_) {
-    pub_gear_ = node.advertise<dbw_polaris_msgs::GearCmd>("gear_cmd", 1);
-  }
-  if (enable_) {
-    pub_enable_ = node.advertise<std_msgs::Empty>("enable", 1);
-    pub_disable_ = node.advertise<std_msgs::Empty>("disable", 1);
-  }
+  pub_brake_ = node.advertise<dbw_polaris_msgs::BrakeCmd>("brake_cmd", 1);
+  pub_throttle_ = node.advertise<dbw_polaris_msgs::ThrottleCmd>("throttle_cmd", 1);
+  pub_steering_ = node.advertise<dbw_polaris_msgs::SteeringCmd>("steering_cmd", 1);
+  pub_steering_cal_ = node.advertise<std_msgs::Empty>("calibrate_steering", 1);
+  pub_gear_ = node.advertise<dbw_polaris_msgs::GearCmd>("gear_cmd", 1);
+  pub_enable_ = node.advertise<std_msgs::Empty>("enable", 1);
+  pub_disable_ = node.advertise<std_msgs::Empty>("disable", 1);
 
   timer_ = node.createTimer(ros::Duration(0.02), &JoystickDemo::cmdCallback, this);
-
-  left2back2_ = false;
-  left2back2Gear1_ = false;
-  left2back2Gear2_ = false;
 }
 
 void JoystickDemo::cmdCallback(const ros::TimerEvent& event)
 {
+  /*
   // Detect joy timeouts and reset
   if (event.current_real - data_.stamp > ros::Duration(0.1)) {
     data_.joy_throttle_valid = false;
@@ -154,73 +111,30 @@ void JoystickDemo::cmdCallback(const ros::TimerEvent& event)
       pub_steering_cal_.publish(std_msgs::Empty());
     }
   }
+  */
 }
 
-void JoystickDemo::recvJoy(const sensor_msgs::Joy::ConstPtr& msg)
+void JoystickDemo::twist_callback(const geometry_msgs::Twist::ConstPtr& msg)
 {
-  // Check for expected sizes
-  if (msg->axes.size() != (size_t)AXIS_COUNT_X && msg->buttons.size() != (size_t)BTN_COUNT_X) {
-    if (msg->axes.size() == (size_t)AXIS_COUNT_D && msg->buttons.size() == (size_t)BTN_COUNT_D) {
-      ROS_ERROR_THROTTLE(2.0, "Detected Logitech Gamepad F310 in DirectInput (D) mode. Please select (X) with the switch on the back to select XInput mode.");
-    }
-    if (msg->axes.size() != (size_t)AXIS_COUNT_X) {
-      ROS_ERROR_THROTTLE(2.0, "Expected %zu joy axis count, received %zu", (size_t)AXIS_COUNT_X, msg->axes.size());
-    }
-    if (msg->buttons.size() != (size_t)BTN_COUNT_X) {
-      ROS_ERROR_THROTTLE(2.0, "Expected %zu joy button count, received %zu", (size_t)BTN_COUNT_X, msg->buttons.size());
-    }
-    return;
-  }
-  //ROS_INFO_STREAM(msg->buttons[0]);
+  ROS_INFO_STREAM(msg->linear.x);
+  data_.linear_x = msg->linear.x;
 
-  // Handle joystick startup
-  if (msg->axes[AXIS_THROTTLE] != 0.0) {
-    data_.joy_throttle_valid = true;
-  }
-  if (msg->axes[AXIS_BRAKE] != 0.0) {
-    data_.joy_brake_valid = true;
-  }
-
-  // Throttle
-  if (data_.joy_throttle_valid) {
-    data_.throttle_joy = 0.5 - 0.5 * msg->axes[AXIS_THROTTLE];
-  }
-
-  // Brake
-  if (data_.joy_brake_valid) {
-    data_.brake_joy = 0.5 - 0.5 * msg->axes[AXIS_BRAKE];
-  }
-
-  // Gear
-  if (msg->buttons[BTN_PARK]) {
-    data_.gear_cmd = dbw_polaris_msgs::Gear::PARK;
-  } else if (msg->buttons[BTN_REVERSE]) {
-    data_.gear_cmd = dbw_polaris_msgs::Gear::REVERSE;
-  } else if (msg->buttons[BTN_DRIVE]) {
-    data_.gear_cmd = dbw_polaris_msgs::Gear::DRIVE;
-  } else if (msg->buttons[BTN_NEUTRAL]) {
-    data_.gear_cmd = dbw_polaris_msgs::Gear::NEUTRAL;
-  } else {
-    data_.gear_cmd = dbw_polaris_msgs::Gear::NONE;
-  }
-
-  // Steering
-  data_.steering_joy = (fabs(msg->axes[AXIS_STEER_1]) > fabs(msg->axes[AXIS_STEER_2])) ? msg->axes[AXIS_STEER_1] : msg->axes[AXIS_STEER_2];
-  data_.steering_mult = msg->buttons[BTN_STEER_MULT_1] || msg->buttons[BTN_STEER_MULT_2];
-  data_.steering_cal =  msg->buttons[BTN_STEER_MULT_1] && msg->buttons[BTN_STEER_MULT_2];
-
-  // Optional enable and disable buttons
-  if (enable_) {
-    if (msg->buttons[BTN_ENABLE]) {
-      pub_enable_.publish(std_msgs::Empty());
-      ROS_INFO_STREAM("ENABLE");
-    }
-    if (msg->buttons[BTN_DISABLE]) {
-      pub_disable_.publish(std_msgs::Empty());
-      ROS_INFO_STREAM("DISABLE");
-    }
-  }
 
   data_.stamp = ros::Time::now();
-  joy_ = *msg;
+  //joy_ = *msg;
+}
+
+int main(int argc, char** argv)
+{
+  ros::init(argc, argv, "joystick_demo2");
+  ros::NodeHandle node;
+  ros::NodeHandle priv_nh("~");
+
+  // Create JoystickDemo class
+  JoystickDemo n(node, priv_nh);
+
+  // Handle callbacks until shutdown
+  ros::spin();
+
+  return 0;
 }

@@ -20,7 +20,7 @@ class JoystickDemo {
 public:
   JoystickDemo(ros::NodeHandle &node, ros::NodeHandle &priv_nh);
 private:
-  void recvJoy(const sensor_msgs::Joy::ConstPtr& msg);
+  void twist_callback(const geometry_msgs::Twist::ConstPtr& msg);
   void cmdCallback(const ros::TimerEvent& event);
 
   // Topics
