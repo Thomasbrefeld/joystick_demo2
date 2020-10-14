@@ -22,6 +22,7 @@ public:
 private:
   void twist_callback(const geometry_msgs::Twist::ConstPtr& msg);
   void cmdCallback(const ros::TimerEvent& event);
+  void gearCheck(const geometry_msgs::Twist::ConstPtr& msg);
 
   // Topics
   ros::Subscriber sub_twist_;
@@ -42,6 +43,7 @@ private:
   // Parameters
   float brake_gain_; // Adjust brake value
   float throttle_gain_; // Adjust throttle value
+  float steer_gain_;
 
   // Parameters
   //bool ignore_; // Ignore driver overrides

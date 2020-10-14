@@ -114,15 +114,46 @@ void JoystickDemo::cmdCallback(const ros::TimerEvent& event)
   */
 }
 
+
+void JoystickDemo::gearCheck(const geometry_msgs::Twist::ConstPtr& msg)
+{
+  dbw_polaris_msgs::GearCmd gearMsg;
+
+  if(msg->linear.x < 0)
+    gearMsg.cmd.gear = dbw_polaris_msgs::Gear::REVERSE;
+  else
+    gearMsg.cmd.gear = dbw_polaris_msgs::Gear::DRIVE;
+
+  pub_gear_.publish(gearMsg);
+}
+
 void JoystickDemo::twist_callback(const geometry_msgs::Twist::ConstPtr& msg)
 {
+  dbw_polaris_msgs::ThrottleCmd throtMsg;
+  throtMsg.pedal_cmd_type = dbw_polaris_msgs::ThrottleCmd::CMD_PERCENT;
+  dbw_polaris_msgs::SteeringCmd steerMsg;
+  steerMsg.cmd_type = dbw_polaris_msgs::SteeringCmd::CMD_ANGLE;
+
   ROS_INFO_STREAM(msg->linear.x);
   data_.linear_x = msg->linear.x;
+  data_.angular_z = msg->angular.z;
 
+  //set the amount of throttle, make sure it is a positive number
+  throtMsg.pedal_cmd = throttle_gain_ * abs(data_.linear_x);
+  
+  //Nolan: maybe have this as a seperate function as well?
+  steerMsg.steering_wheel_angle_velocity = steer_gain_ * data_.angular_z;
+  //steerMsg.steering_wheel_angle_cmd = ;
+  
+  //check if the car should go forward or reverse
+  gearCheck(msg);
 
   data_.stamp = ros::Time::now();
-  //joy_ = *msg;
+
+  pub_steering_.publish(steerMsg);
+  pub_throttle_.publish(throtMsg);
 }
+
 
 int main(int argc, char** argv)
 {
