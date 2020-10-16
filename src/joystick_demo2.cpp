@@ -1,12 +1,11 @@
 #include "joystick_demo2.h"
 
-JoystickDemo::JoystickDemo(ros::NodeHandle &node, ros::NodeHandle &priv_nh) : counter_(0)
-{
+JoystickDemo::JoystickDemo(ros::NodeHandle &node, ros::NodeHandle &priv_nh) : counter_(0){
   brake_gain_ = 1.0;
   throttle_gain_ = 1.0;
   priv_nh.getParam("brake_gain", brake_gain_);
   priv_nh.getParam("throttle_gain", throttle_gain_);
-  brake_gain_    = std::min(std::max(brake_gain_,    (float)0), (float)1);
+  brake_gain_ = std::min(std::max(brake_gain_,    (float)0), (float)1);
   throttle_gain_ = std::min(std::max(throttle_gain_, (float)0), (float)1);
 
   sub_twist_ = node.subscribe("/joy_to_twist", 1, &JoystickDemo::twist_callback, this);
@@ -17,25 +16,59 @@ JoystickDemo::JoystickDemo(ros::NodeHandle &node, ros::NodeHandle &priv_nh) : co
   pub_brake_ = node.advertise<dbw_polaris_msgs::BrakeCmd>("brake_cmd", 1);
   pub_throttle_ = node.advertise<dbw_polaris_msgs::ThrottleCmd>("throttle_cmd", 1);
   pub_steering_ = node.advertise<dbw_polaris_msgs::SteeringCmd>("steering_cmd", 1);
-  pub_steering_cal_ = node.advertise<std_msgs::Empty>("calibrate_steering", 1);
   pub_gear_ = node.advertise<dbw_polaris_msgs::GearCmd>("gear_cmd", 1);
-  pub_enable_ = node.advertise<std_msgs::Empty>("enable", 1);
-  pub_disable_ = node.advertise<std_msgs::Empty>("disable", 1);
 
   timer_ = node.createTimer(ros::Duration(0.02), &JoystickDemo::cmdCallback, this);
+
+  pub_enable_ = node.advertise<std_msgs::Empty>("enable", 1);
+  pub_enable_.publish(std_msgs::Empty());
 }
 
-void JoystickDemo::cmdCallback(const ros::TimerEvent& event)
-{
-  /*
+void JoystickDemo::cmdCallback(const ros::TimerEvent& event){
   // Detect joy timeouts and reset
-  if (event.current_real - data_.stamp > ros::Duration(0.1)) {
-    data_.joy_throttle_valid = false;
-    data_.joy_brake_valid = false;
+  /*
+  if (event.current_real - data_.stamp > ros::Duration(0.1)){
+    data_.linear_x = 0;
+    data_.angular_z = 0;
     last_steering_filt_output_ = 0.0;
-    return;
+
+    ROS_INFO_STREAM(" Timeout/reset detected!");
+  }
+  */
+  
+  if (abs(data_.linear_x) > 0.0 && abs(data_.linear_x < 1.0)){
+    // Gear
+    dbw_polaris_msgs::GearCmd gear_msg;
+    if(data_.linear_x < 0)
+      gear_msg.cmd.gear = dbw_polaris_msgs::Gear::REVERSE;
+    else
+      gear_msg.cmd.gear = dbw_polaris_msgs::Gear::DRIVE;
+    pub_gear_.publish(gear_msg); //might need to check timing
+
+    // Throttle 
+    dbw_polaris_msgs::ThrottleCmd throttle_msg;
+    throttle_msg.pedal_cmd_type = dbw_polaris_msgs::ThrottleCmd::CMD_PERCENT;
+    throttle_msg.pedal_cmd = abs(data_.linear_x) * throttle_gain_;
+    pub_throttle_.publish(throttle_msg);
+  }
+  else {
+    // Brake
+    // still working on a way to give a good braking experience
+    dbw_polaris_msgs::BrakeCmd brake_msg;
+    brake_msg.enable = true;
+    brake_msg.pedal_cmd_type = dbw_polaris_msgs::BrakeCmd::CMD_PERCENT;
+    brake_msg.pedal_cmd = .3 * brake_gain_;
+    pub_brake_.publish(brake_msg);
   }
 
+  dbw_polaris_msgs::SteeringCmd steering_msg;
+  steering_msg.cmd_type = dbw_polaris_msgs::SteeringCmd::CMD_ANGLE;
+  float tau = 0.1;
+  float filtered_steering_cmd = 0.02 / tau * data_.angular_z + (1 - 0.02 / tau) * last_steering_filt_output_;
+  last_steering_filt_output_ = filtered_steering_cmd;
+  pub_steering_.publish(steering_msg);
+
+  /*
   //ROS_INFO_STREAM(event.current_real - data_.stamp);
 
   // Optional watchdog counter
@@ -114,49 +147,13 @@ void JoystickDemo::cmdCallback(const ros::TimerEvent& event)
   */
 }
 
-
-void JoystickDemo::gearCheck(const geometry_msgs::Twist::ConstPtr& msg)
-{
-  dbw_polaris_msgs::GearCmd gearMsg;
-
-  if(msg->linear.x < 0)
-    gearMsg.cmd.gear = dbw_polaris_msgs::Gear::REVERSE;
-  else
-    gearMsg.cmd.gear = dbw_polaris_msgs::Gear::DRIVE;
-
-  pub_gear_.publish(gearMsg);
-}
-
-void JoystickDemo::twist_callback(const geometry_msgs::Twist::ConstPtr& msg)
-{
-  dbw_polaris_msgs::ThrottleCmd throtMsg;
-  throtMsg.pedal_cmd_type = dbw_polaris_msgs::ThrottleCmd::CMD_PERCENT;
-  dbw_polaris_msgs::SteeringCmd steerMsg;
-  steerMsg.cmd_type = dbw_polaris_msgs::SteeringCmd::CMD_ANGLE;
-
-  ROS_INFO_STREAM(msg->linear.x);
+void JoystickDemo::twist_callback(const geometry_msgs::Twist::ConstPtr& msg){
   data_.linear_x = msg->linear.x;
   data_.angular_z = msg->angular.z;
-
-  //set the amount of throttle, make sure it is a positive number
-  throtMsg.pedal_cmd = throttle_gain_ * abs(data_.linear_x);
-  
-  //Nolan: maybe have this as a seperate function as well?
-  steerMsg.steering_wheel_angle_velocity = steer_gain_ * data_.angular_z;
-  //steerMsg.steering_wheel_angle_cmd = ;
-  
-  //check if the car should go forward or reverse
-  gearCheck(msg);
-
   data_.stamp = ros::Time::now();
-
-  pub_steering_.publish(steerMsg);
-  pub_throttle_.publish(throtMsg);
 }
 
-
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv){
   ros::init(argc, argv, "joystick_demo2");
   ros::NodeHandle node;
   ros::NodeHandle priv_nh("~");
