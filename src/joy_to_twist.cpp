@@ -11,9 +11,9 @@ geometry_msgs::Twist vel_msg;
 
 void joy_call_back(const sensor_msgs::Joy::ConstPtr& msg){
     vel_msg.linear.x = msg->axes[1];
-    vel_msg.angular.z = msg->axes[2];
+    vel_msg.angular.z = msg->axes[3];
     cmd_vel.publish(vel_msg);
-    ROS_INFO_STREAM("Joy_callback");
+    ROS_INFO_STREAM(vel_msg.angular.z);
 }
 
 int main(int argc, char** argv){

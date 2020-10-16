@@ -5,7 +5,7 @@
     </group>
 
     <arg name="brake_gain" default="1.0"/>
-    <arg name="throttle_gain" default="1.0"/>
+    <arg name="throttle_gain" default=".2"/>
     <node ns="vehicle" pkg="joystick_demo2" type="joystick_demo2" name="joystick_demo2" output="screen" >
         <param name="brake_gain" value="$(arg brake_gain)" /> <!-- Adjust brake value -->
         <param name="throttle_gain" value="$(arg throttle_gain)" /> <!-- Adjust throttle value -->

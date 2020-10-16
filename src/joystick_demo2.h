@@ -42,6 +42,9 @@ private:
   geometry_msgs::Twist twist_;
   uint8_t counter_;
   float last_steering_filt_output_;
+  ros::Time gear_changed_;
+  ros::Time brake_time_;
+  int last_gear_;
 
 };
 
