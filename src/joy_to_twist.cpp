@@ -13,7 +13,6 @@ void joy_call_back(const sensor_msgs::Joy::ConstPtr& msg){
     vel_msg.linear.x = msg->axes[1];
     vel_msg.angular.z = msg->axes[3];
     cmd_vel.publish(vel_msg);
-    ROS_INFO_STREAM(vel_msg.angular.z);
 }
 
 int main(int argc, char** argv){
@@ -34,5 +33,6 @@ int main(int argc, char** argv){
 	vel_msg.angular.x = 0;
 	vel_msg.angular.y = 0;
 
+    ROS_INFO_STREAM("joy_to_twist started!");
     ros::spin();
 }
