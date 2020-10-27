@@ -1,8 +1,8 @@
 #include "joystick_demo2.h"
 
 JoystickDemo::JoystickDemo(ros::NodeHandle &node, ros::NodeHandle &priv_nh) : counter_(0){
-  brake_gain_ = 1.0;
-  throttle_gain_ = 1.0;
+  brake_gain_ = .3;
+  throttle_gain_ = .2;
   priv_nh.getParam("brake_gain", brake_gain_);
   priv_nh.getParam("throttle_gain", throttle_gain_);
   brake_gain_ = std::min(std::max(brake_gain_,    (float)0), (float)1);
@@ -65,9 +65,9 @@ void JoystickDemo::cmdCallback(const ros::TimerEvent& event){
     brake_msg.count = counter_;
     brake_msg.pedal_cmd_type = dbw_polaris_msgs::BrakeCmd::CMD_PERCENT;
     if ((event.current_real - brake_time_).toSec() < 1.0)
-      brake_msg.pedal_cmd = (event.current_real - brake_time_).toSec() * .33;
+      brake_msg.pedal_cmd = (event.current_real - brake_time_).toSec() * brake_gain_;
     else
-      brake_msg.pedal_cmd = .3;
+      brake_msg.pedal_cmd = brake_gain_;
     pub_brake_.publish(brake_msg);
   }
 
